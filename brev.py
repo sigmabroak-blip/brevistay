@@ -10,12 +10,14 @@ import urllib.parse
 import threading
 import os
 import logging
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+from telegram.request import HTTPXRequest
 
 # ========== CONFIG ==========
 TELEGRAM_BOT_TOKEN = "8646908060:AAGzfWQcu6vDIXKbZTgYuJ-e0ueIHcAOqN8"
-ADMIN_IDS = [1446058092]  # Your admin ID
+ADMIN_IDS = [1446058092]
 
 BASE_URL = "https://cadburybakespromo.com"
 MAX_WORKERS = 30
@@ -49,33 +51,42 @@ logger = logging.getLogger(__name__)
 
 # ========== TELEGRAM FUNCTIONS ==========
 def send_telegram_message(chat_id, message, parse_mode="Markdown"):
-    """Send message to Telegram"""
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": message,
-            "parse_mode": parse_mode,
-            "disable_web_page_preview": True
-        }
-        response = requests.post(url, json=payload, timeout=30)
-        return response.status_code == 200
-    except Exception as e:
-        logger.error(f"Telegram send error: {e}")
-        return False
+    """Send message to Telegram with retry"""
+    for attempt in range(3):
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+            payload = {
+                "chat_id": chat_id,
+                "text": message,
+                "parse_mode": parse_mode,
+                "disable_web_page_preview": True
+            }
+            response = requests.post(url, json=payload, timeout=60)
+            if response.status_code == 200:
+                return True
+            logger.warning(f"Telegram send attempt {attempt+1} failed: {response.status_code}")
+            time.sleep(2)
+        except Exception as e:
+            logger.warning(f"Telegram send error (attempt {attempt+1}): {e}")
+            time.sleep(2)
+    return False
 
 def send_telegram_document(chat_id, file_path, caption=""):
-    """Send a file to Telegram"""
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
-        with open(file_path, 'rb') as f:
-            files = {'document': f}
-            data = {'chat_id': chat_id, 'caption': caption}
-            response = requests.post(url, files=files, data=data, timeout=30)
-            return response.status_code == 200
-    except Exception as e:
-        logger.error(f"Document send error: {e}")
-        return False
+    """Send a file to Telegram with retry"""
+    for attempt in range(3):
+        try:
+            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+            with open(file_path, 'rb') as f:
+                files = {'document': f}
+                data = {'chat_id': chat_id, 'caption': caption}
+                response = requests.post(url, files=files, data=data, timeout=60)
+                if response.status_code == 200:
+                    return True
+            time.sleep(2)
+        except Exception as e:
+            logger.warning(f"Document send error (attempt {attempt+1}): {e}")
+            time.sleep(2)
+    return False
 
 # ========== CORE FUNCTIONS ==========
 def generate_code():
@@ -195,19 +206,15 @@ def worker(thread_id, chat_id):
         status = response.get("statusCode", 0)
         http_status = response.get("http_status", 0)
 
-        # Send status update every 1000 attempts
-        if attempts % 1000 == 0 and attempts != last_update:
+        # Send status update every 5000 attempts
+        if attempts % 5000 == 0 and attempts != last_update:
             last_update = attempts
             elapsed = int(time.time() - start_time)
-            send_telegram_message(
-                chat_id,
-                f"🔄 *Progress Update*\n\n"
-                f"🧵 Thread: {thread_id}\n"
-                f"🔄 Attempts: {attempts}\n"
-                f"⏱️ Time: {elapsed}s\n"
-                f"🔍 Still searching...",
-                parse_mode="Markdown"
-            )
+            threading.Thread(
+                target=send_telegram_message,
+                args=(chat_id, f"🔄 *Progress Update*\n\n🧵 Thread: {thread_id}\n🔄 Attempts: {attempts}\n⏱️ Time: {elapsed}s\n🔍 Still searching..."),
+                daemon=True
+            ).start()
 
         if status == 200 or http_status == 200:
             found_valid = True
@@ -301,7 +308,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
     user_id = update.effective_user.id
     
-    # Check if admin
     if user_id not in ADMIN_IDS:
         await update.message.reply_text("⛔ You are not authorized to use this bot.")
         return
@@ -324,7 +330,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📱 Mobile: `{mobile_text}`\n"
         f"📊 Status: {status_text}\n"
         f"🧵 Threads: {MAX_WORKERS}\n\n"
-        f"Use the buttons below to control the bot:",
+        f"Send a 10-digit mobile number or use the buttons:",
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
@@ -352,7 +358,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     text = update.message.text.strip()
     
-    # If user sends a mobile number, start brute force
     if text.isdigit() and len(text) == 10:
         if brute_force_running:
             await update.message.reply_text("⚠️ Brute force is already running! Use /stop first.")
@@ -365,7 +370,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
         
-        # Start brute force in background thread
         thread = threading.Thread(target=start_brute_force, args=(chat_id, text))
         thread.daemon = True
         thread.start()
@@ -437,20 +441,42 @@ def main():
     print(f"👑 Admin ID: {ADMIN_IDS[0]}")
     print(f"🧵 Threads: {MAX_WORKERS}")
     print("="*60)
-    print("✅ Bot is running! Send /start on Telegram to begin.")
+    print("✅ Bot is starting...")
     print("="*60)
     
-    # Create application
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-    
-    # Add handlers
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("stop", stop_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(CallbackQueryHandler(callback_handler))
-    
-    # Start polling
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        # Create application with custom timeout
+        request = HTTPXRequest(
+            connect_timeout=60.0,
+            read_timeout=60.0,
+            write_timeout=60.0,
+            pool_timeout=60.0,
+        )
+        app = Application.builder().token(TELEGRAM_BOT_TOKEN).request(request).build()
+        
+        # Add handlers
+        app.add_handler(CommandHandler("start", start_command))
+        app.add_handler(CommandHandler("stop", stop_command))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        app.add_handler(CallbackQueryHandler(callback_handler))
+        
+        print("✅ Bot is running! Send /start on Telegram to begin.")
+        print("="*60)
+        
+        # Start polling with longer timeout
+        app.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            timeout=60,
+            read_timeout=60,
+            write_timeout=60,
+            pool_timeout=60,
+            connect_timeout=60,
+        )
+    except Exception as e:
+        print(f"❌ Error starting bot: {e}")
+        print("Retrying in 10 seconds...")
+        time.sleep(10)
+        main()
 
 if __name__ == "__main__":
     main()
