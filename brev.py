@@ -63,6 +63,9 @@ def db():
 
 
 def init_db():
+    # Create the bot directory if it doesn't exist
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    
     con = db()
     c = con.cursor()
     c.executescript("""
