@@ -8,7 +8,7 @@ import sqlite3
 # named TELEGRAM_BOT_TOKEN (e.g. in Railway's service variables). For local
 # development only, you may optionally set BOT_TOKEN below as a fallback —
 # never commit a real token to the repository.
-BOT_TOKEN = None   # ← Optional local dev fallback; leave as None in production
+BOT_TOKEN = "8928290153:AAHGAzLKEvT9tSDDCgdqZq8EPegLb_ROYsw"  # ← Optional local dev fallback; leave as None in production
 # ══════════════════════════════════════════════════════════════════════════════
 import logging
 import random
