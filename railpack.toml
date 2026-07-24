@@ -1,2 +1,2 @@
-[commands]
-start = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+python-telegram-bot==20.0
+requests
