@@ -2,9 +2,13 @@ import os
 import sqlite3
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 🔑  BOT CONFIGURATION  —  Edit this section as needed
+# 🔑  BOT CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
-BOT_TOKEN = "8928290153:AAHGAzLKEvT9tSDDCgdqZq8EPegLb_ROYsw"   # ← Telegram Bot Token
+# The bot token must NOT be hardcoded here. Set it as an environment variable
+# named TELEGRAM_BOT_TOKEN (e.g. in Railway's service variables). For local
+# development only, you may optionally set BOT_TOKEN below as a fallback —
+# never commit a real token to the repository.
+BOT_TOKEN = None   # ← Optional local dev fallback; leave as None in production
 # ══════════════════════════════════════════════════════════════════════════════
 import logging
 import random
@@ -980,9 +984,18 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    token = BOT_TOKEN or os.environ.get("TELEGRAM_BOT_TOKEN")
+    # Prefer the TELEGRAM_BOT_TOKEN environment variable (set this in Railway's
+    # service variables for production). Falls back to BOT_TOKEN above, which
+    # can be set locally for development but should never contain a real
+    # secret in version control.
+    token = os.environ.get("TELEGRAM_BOT_TOKEN") or BOT_TOKEN
     if not token:
-        raise RuntimeError("BOT_TOKEN not set — edit it at the top of this file")
+        raise RuntimeError(
+            "No bot token found. Set the TELEGRAM_BOT_TOKEN environment "
+            "variable (e.g. in Railway's service variables) or, for local "
+            "development, set BOT_TOKEN at the top of this file."
+        )
+
 
     init_db()
 
