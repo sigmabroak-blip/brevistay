@@ -33,8 +33,8 @@ CHANNELS    = ["@earnwithsakx", "@blankkdealz"]
 CHAN_LINKS  = ["https://t.me/earnwithsakx", "https://t.me/blankkdealz"]
 ADMIN_IDS   = [6894923643, 1446058092]
 DB_PATH     = "bot/bot.db"
-REFERRAL_POINTS = 2
-DEFAULT_BREVI_REF = "SAKS240387"   # initial global default; admins can change it
+REFERRAL_POINTS = 1
+DEFAULT_BREVI_REF = "SAKS2403"   # initial global default; admins can change it
 
 INDIAN_FIRST = [
     "Arjun","Aarav","Vihaan","Vivaan","Ananya","Diya","Aadhya","Sai",
