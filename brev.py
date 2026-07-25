@@ -242,19 +242,34 @@ class BrevistayClient:
         domains = ["gmail.com","yahoo.com","outlook.com","protonmail.com","hotmail.com"]
         return f"{first.lower()}.{last.lower()}{mobile[-4:]}{random.randint(100,999)}@{random.choice(domains)}"
 
+    def _safe_json(self, response):
+        """Parse JSON safely — returns an error dict if the response is empty or not valid JSON."""
+        try:
+            return response.json()
+        except ValueError:
+            return {
+                "status": "ERROR",
+                "msg": f"Server returned non-JSON response (HTTP {response.status_code}): {response.text[:200]}"
+            }
+
     def _post(self, url, **kw):
-        return self.session.post(url, headers={**self.default_headers,"Content-Type":"application/json; charset=UTF-8"}, **kw)
+        resp = self.session.post(url, headers={**self.default_headers,"Content-Type":"application/json; charset=UTF-8"}, **kw)
+        return self._safe_json(resp)
+
+    def _get(self, url, **kw):
+        resp = self.session.get(url, **kw)
+        return self._safe_json(resp)
 
     def send_otp(self, mobile: str) -> dict:
         return self._post(f"{self.base_url}/app-api/login",
             json={"is_otp":1,"is_password":0,"mobile":mobile,"otp":123456,"password":""}
-        ).json()
+        )
 
     def login(self, mobile: str, otp: str, ref_code: str = DEFAULT_BREVI_REF) -> dict:
         data = self._post(f"{self.base_url}/app-api/verify-user",
             json={"channel":"MOBILE","is_otp":1,"is_password":0,
                   "mobile":mobile,"otp":int(otp),"ref_code":ref_code}
-        ).json()
+        )
         self._save_token(data); return data
 
     def register(self, email, mobile, name, last_name, otp,
@@ -263,21 +278,23 @@ class BrevistayClient:
             json={"channel":"MOBILE","email":email,"is_otp":1,"is_password":0,
                   "lastName":last_name,"mobile":int(mobile),"name":name,
                   "otp":int(otp),"password":"12345","ref_code":ref_code}
-        ).json()
+        )
         if data.get("token"):
             self.user_name = name; self.user_last_name = last_name
             self.user_email = email; self.user_mobile = mobile
         self._save_token(data); return data
 
     def get_profile(self) -> dict:
-        return self.session.post(f"{self.base_url}/app-api/user-profile",
+        resp = self.session.post(f"{self.base_url}/app-api/user-profile",
             headers={**self.default_headers,"Content-Length":"0"}, data=""
-        ).json()
+        )
+        return self._safe_json(resp)
 
     def resend_email_verify(self) -> dict:
-        return self.session.get(f"{self.web_url}/cst/app-api/resend_email_verification",
+        resp = self.session.get(f"{self.web_url}/cst/app-api/resend_email_verification",
             headers={**self.web_headers,"authorization":f"Bearer {self.token}"}
-        ).json()
+        )
+        return self._safe_json(resp)
 
     def _save_token(self, data: dict):
         if data.get("token"):
