@@ -32,7 +32,8 @@ logger = logging.getLogger(__name__)
 CHANNELS    = ["@earnwithsakx", "@blankkdealz"]
 CHAN_LINKS  = ["https://t.me/earnwithsakx", "https://t.me/blankkdealz"]
 ADMIN_IDS   = [6894923643, 1446058092]
-DB_PATH     = "bot/bot.db"
+_BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
+DB_PATH     = os.path.join(_BASE_DIR, "bot.db")
 REFERRAL_POINTS = 1
 DEFAULT_BREVI_REF = "SAKS240387"   # initial global default; admins can change it
 
