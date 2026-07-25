@@ -4,7 +4,7 @@ import sqlite3
 # ══════════════════════════════════════════════════════════════════════════════
 # 🔑  BOT CONFIGURATION  —  Edit this section as needed
 # ══════════════════════════════════════════════════════════════════════════════
-BOT_TOKEN = "8916727896:AAHWZk9pUTXTO0O3KE5COZuKVk8cCGmzsWY"   # ← Telegram Bot Token
+BOT_TOKEN = "8928290153:AAEG4aGbR_VwvXt20CNxImAzgs8g43U1T-U"   # ← Telegram Bot Token
 # ══════════════════════════════════════════════════════════════════════════════
 import logging
 import random
@@ -34,7 +34,7 @@ CHAN_LINKS  = ["https://t.me/earnwithsakx", "https://t.me/blankkdealz"]
 ADMIN_IDS   = [6894923643, 1446058092]
 DB_PATH     = "bot/bot.db"
 REFERRAL_POINTS = 1
-DEFAULT_BREVI_REF = "SAKS2403"   # initial global default; admins can change it
+DEFAULT_BREVI_REF = "SAKS240387"   # initial global default; admins can change it
 
 INDIAN_FIRST = [
     "Arjun","Aarav","Vihaan","Vivaan","Ananya","Diya","Aadhya","Sai",
@@ -63,9 +63,6 @@ def db():
 
 
 def init_db():
-    # Create the bot directory if it doesn't exist
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    
     con = db()
     c = con.cursor()
     c.executescript("""
@@ -242,59 +239,53 @@ class BrevistayClient:
         domains = ["gmail.com","yahoo.com","outlook.com","protonmail.com","hotmail.com"]
         return f"{first.lower()}.{last.lower()}{mobile[-4:]}{random.randint(100,999)}@{random.choice(domains)}"
 
-    def _safe_json(self, response):
-        """Parse JSON safely — returns an error dict if the response is empty or not valid JSON."""
-        try:
-            return response.json()
-        except ValueError:
-            return {
-                "status": "ERROR",
-                "msg": f"Server returned non-JSON response (HTTP {response.status_code}): {response.text[:200]}"
-            }
-
     def _post(self, url, **kw):
-        resp = self.session.post(url, headers={**self.default_headers,"Content-Type":"application/json; charset=UTF-8"}, **kw)
-        return self._safe_json(resp)
+        return self.session.post(url, headers={**self.default_headers,"Content-Type":"application/json; charset=UTF-8"}, timeout=30, **kw)
 
-    def _get(self, url, **kw):
-        resp = self.session.get(url, **kw)
-        return self._safe_json(resp)
+    def _parse(self, resp) -> dict:
+        """Safely parse JSON — raises RuntimeError with a clean message on failure."""
+        try:
+            return resp.json()
+        except Exception:
+            raise RuntimeError(
+                f"Brevistay server ne invalid response diya "
+                f"(HTTP {resp.status_code}). "
+                f"Server temporarily down ya IP block ho sakta hai. Thodi der baad try karo."
+            )
 
     def send_otp(self, mobile: str) -> dict:
-        return self._post(f"{self.base_url}/app-api/login",
+        return self._parse(self._post(f"{self.base_url}/app-api/login",
             json={"is_otp":1,"is_password":0,"mobile":mobile,"otp":123456,"password":""}
-        )
+        ))
 
     def login(self, mobile: str, otp: str, ref_code: str = DEFAULT_BREVI_REF) -> dict:
-        data = self._post(f"{self.base_url}/app-api/verify-user",
+        data = self._parse(self._post(f"{self.base_url}/app-api/verify-user",
             json={"channel":"MOBILE","is_otp":1,"is_password":0,
                   "mobile":mobile,"otp":int(otp),"ref_code":ref_code}
-        )
+        ))
         self._save_token(data); return data
 
     def register(self, email, mobile, name, last_name, otp,
                  ref_code: str = DEFAULT_BREVI_REF) -> dict:
-        data = self._post(f"{self.base_url}/app-api/verify-user",
+        data = self._parse(self._post(f"{self.base_url}/app-api/verify-user",
             json={"channel":"MOBILE","email":email,"is_otp":1,"is_password":0,
                   "lastName":last_name,"mobile":int(mobile),"name":name,
                   "otp":int(otp),"password":"12345","ref_code":ref_code}
-        )
+        ))
         if data.get("token"):
             self.user_name = name; self.user_last_name = last_name
             self.user_email = email; self.user_mobile = mobile
         self._save_token(data); return data
 
     def get_profile(self) -> dict:
-        resp = self.session.post(f"{self.base_url}/app-api/user-profile",
-            headers={**self.default_headers,"Content-Length":"0"}, data=""
-        )
-        return self._safe_json(resp)
+        return self._parse(self.session.post(f"{self.base_url}/app-api/user-profile",
+            headers={**self.default_headers,"Content-Length":"0"}, data="", timeout=30
+        ))
 
     def resend_email_verify(self) -> dict:
-        resp = self.session.get(f"{self.web_url}/cst/app-api/resend_email_verification",
-            headers={**self.web_headers,"authorization":f"Bearer {self.token}"}
-        )
-        return self._safe_json(resp)
+        return self._parse(self.session.get(f"{self.web_url}/cst/app-api/resend_email_verification",
+            headers={**self.web_headers,"authorization":f"Bearer {self.token}"}, timeout=30
+        ))
 
     def _save_token(self, data: dict):
         if data.get("token"):
