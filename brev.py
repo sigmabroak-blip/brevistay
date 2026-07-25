@@ -4,7 +4,7 @@ import sqlite3
 # ══════════════════════════════════════════════════════════════════════════════
 # 🔑  BOT CONFIGURATION  —  Edit this section as needed
 # ══════════════════════════════════════════════════════════════════════════════
-BOT_TOKEN = "8928290153:AAEG4aGbR_VwvXt20CNxImAzgs8g43U1T-U"   # ← Telegram Bot Token
+BOT_TOKEN = "8916727896:AAHWZk9pUTXTO0O3KE5COZuKVk8cCGmzsWY"   # ← Telegram Bot Token
 # ══════════════════════════════════════════════════════════════════════════════
 import logging
 import random
